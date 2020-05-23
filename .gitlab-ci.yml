@@ -1,0 +1,25 @@
+image: docker:19.03.1
+
+services:
+  - docker:dind
+
+cache:
+  paths:
+    - .gradle/
+
+stages:
+  - build
+
+build:
+  stage: build
+  script:
+    - "./workbench ./gradlew clean build publish"
+  artifacts:
+    when: always
+    paths:
+      - "*/build/reports/tests/test"
+      - "*/build/reports/pmd"
+      - "*/build/reports/findbugs"
+    reports:
+      junit:
+        - "*/build/test-results/test/TEST-*.xml"
