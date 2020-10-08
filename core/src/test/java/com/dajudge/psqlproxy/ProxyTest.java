@@ -57,6 +57,7 @@ public class ProxyTest {
         }
     }
 
+    @SuppressWarnings(value = "PMD.EmptyCatchBlock") // For the happy path
     private void expectFailedJdbcTest(final String host, final Integer port) {
         try (final Connection conn = createConnection(host, port)) {
             throw new AssertionError("Expected connection failure");
