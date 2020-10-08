@@ -1,0 +1,81 @@
+/*
+ * Copyright 2020 The psqlproxy developers (see CONTRIBUTORS)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+package com.dajudge.psqlproxy.itest;
+
+import com.dajudge.proxybase.config.Endpoint;
+import com.dajudge.psqlproxy.PostgresProxyConfig;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.PostgreSQLContainer;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import static com.dajudge.psqlproxy.testutil.PostgresContainerFactory.*;
+import static java.lang.String.format;
+import static java.sql.DriverManager.getConnection;
+import static java.util.Optional.of;
+import static org.junit.Assert.assertEquals;
+import static org.testcontainers.containers.Network.newNetwork;
+
+public class SampleIntegrationTest {
+    private static final PostgresProxyConfig CONFIG = new PostgresProxyConfig(
+            new Endpoint("psql-server", 5432),
+            new Endpoint("0.0.0.0", 40000),
+            DB_USERNAME,
+            DB_PASSWORD,
+            true
+    );
+    private static final Logger LOG = LoggerFactory.getLogger(SampleIntegrationTest.class);
+    private static PostgreSQLContainer<?> postgres;
+    private static ProxyContainer<?> proxy;
+
+    @Test
+    public void runTest() throws SQLException {
+        try (final Connection c = createProxiedConnection()) {
+            assertEquals("PostgreSQL", c.getMetaData().getDatabaseProductName());
+        }
+    }
+
+    private Connection createProxiedConnection() throws SQLException {
+        return createConnection("localhost", proxy.getMappedPort(CONFIG.getProxyEndpoint().getPort()));
+    }
+
+    private Connection createConnection(final String host, final Integer port) throws SQLException {
+        return getConnection(format("jdbc:postgresql://%s:%s/%s", host, port, DB_DATABASE));
+    }
+
+    @BeforeClass
+    public static void createTestbed() {
+        final Network network = newNetwork();
+        postgres = createDatabaseContainer(true, of(network)).withNetworkAliases(CONFIG.getServerEndpoint().getHost());
+        postgres.start();
+        proxy = new ProxyContainer<>(network, System.getProperty("psqlproxyImage"), CONFIG);
+        proxy.start();
+    }
+
+    @AfterClass
+    public static void deleteTestbed() {
+        proxy.close();
+        postgres.close();
+    }
+}

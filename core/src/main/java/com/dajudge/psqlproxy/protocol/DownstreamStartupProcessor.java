@@ -82,7 +82,7 @@ public class DownstreamStartupProcessor implements FrameProcessor {
                 message.release();
                 return this;
             case AUTH_REQ_OK:
-                LOG.info("Authentication successful");
+                LOG.debug("Authentication successful");
                 payload.resetReaderIndex();
                 ctx.fireChannelRead(message.all());
                 return next;
@@ -92,7 +92,7 @@ public class DownstreamStartupProcessor implements FrameProcessor {
     }
 
     private FrameProcessor handleMd5(final ChannelHandlerContext ctx, final ByteBuf payload) {
-        LOG.info("MD5 authentication requested");
+        LOG.debug("MD5 authentication requested");
         final byte[] salt = new byte[4];
         payload.readBytes(salt, 0, salt.length);
         byte[] digest = MD5Digest.encode(username.getBytes(UTF_8), password.getBytes(UTF_8), salt);

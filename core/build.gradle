@@ -1,16 +1,17 @@
-apply plugin: "java"
+plugins {
+    id "java-library"
+}
 
 dependencies {
-    implementation libProxyBase
+    api libProxyBase
     // For parsing configs
     implementation "org.yaml:snakeyaml:1.25"
     // The logging API
     implementation "org.slf4j:slf4j-api:1.7.29"
     implementation "org.postgresql:postgresql:42.2.12"
 
-    testImplementation "org.bouncycastle:bcpkix-jdk15on:1.64"
+    testImplementation project(":testutil")
     testImplementation "junit:junit:4.11"
-    testImplementation "org.testcontainers:postgresql:1.14.1"
     testCompileOnly "com.google.code.findbugs:annotations:3.0.1"
     testRuntimeOnly "ch.qos.logback:logback-classic:1.2.3"
 }

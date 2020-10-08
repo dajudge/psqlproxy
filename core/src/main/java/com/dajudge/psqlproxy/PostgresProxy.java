@@ -29,25 +29,27 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 
 import java.util.function.Consumer;
 
-public class ProstgresProxy extends ProxyApplication {
-    public ProstgresProxy(
-            final Endpoint serverEndpoint,
-            final Endpoint proxyEndpoint,
-            final String username,
-            final String password
-    ) {
-        super(createProxyChannel(serverEndpoint, proxyEndpoint, username, password));
+public class PostgresProxy extends ProxyApplication {
+    public PostgresProxy(final PostgresProxyConfig config) {
+        super(createProxyChannel(
+                config.getServerEndpoint(),
+                config.getProxyEndpoint(),
+                config.getUsername(),
+                config.getPassword(),
+                config.isSslRequired()
+        ));
     }
 
     private static Consumer<ProxyChannelFactory> createProxyChannel(
             final Endpoint serverEndpoint,
             final Endpoint proxyEndpoint,
             final String username,
-            final String password
+            final String password,
+            final boolean requireSsl
     ) {
         final ProxyChannelInitializer initializer = (upstreamChannel, downstreamChannel) -> {
             configureUpstream(username, upstreamChannel, downstreamChannel);
-            configureDownstream(username, password, upstreamChannel, downstreamChannel);
+            configureDownstream(username, password, upstreamChannel, downstreamChannel, requireSsl);
         };
         return factory -> factory.createProxyChannel(
                 proxyEndpoint,
@@ -71,7 +73,8 @@ public class ProstgresProxy extends ProxyApplication {
             final String username,
             final String password,
             final Channel upstreamChannel,
-            final Channel downstreamChannel
+            final Channel downstreamChannel,
+            final boolean requireSsl
     ) {
         final ContinueFrameProcessor finalProcessor = new ContinueFrameProcessor();
         final DownstreamStartupProcessor downstreamStartupProcessor = new DownstreamStartupProcessor(
@@ -81,7 +84,7 @@ public class ProstgresProxy extends ProxyApplication {
         );
         downstreamChannel.pipeline().addLast(new TypedFrameHandler(downstreamStartupProcessor));
         downstreamChannel.pipeline().addLast(forwardTo("upstream", upstreamChannel));
-        downstreamChannel.pipeline().addFirst(new DownstreamSslActivationHandler());
+        downstreamChannel.pipeline().addFirst(new DownstreamSslActivationHandler(requireSsl));
     }
 
     private static ChannelInboundHandlerAdapter forwardTo(final String direction, final Channel fwd) {

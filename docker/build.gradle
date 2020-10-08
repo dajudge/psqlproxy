@@ -2,22 +2,30 @@ import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
 plugins {
+    id 'java'
     id 'com.bmuschko.docker-remote-api' version '5.3.0'
 }
 
+dependencies {
+    testImplementation project(":core")
+    testImplementation project(":testutil")
+    testImplementation "junit:junit:4.11"
+    testRuntimeOnly "ch.qos.logback:logback-classic:1.2.3"
+}
+
 def dockerBuildDir = file("${project.buildDir}/docker")
-List tagsToBuild = (
+List tagsToBuild = ((
         (System.getenv("CI_COMMIT_REF_NAME").equals("master") ? ["devel"] : []) +
                 ((System.getenv("CI_COMMIT_TAG") ?: "").startsWith("release/") ? System.getenv("CI_COMMIT_TAG").substring("release/".length()) : [])
-).collect { "dajudge/psqlproxy:$it" }
+) + "itest").collect { "dajudge/psqlproxy:$it" }
 if (!tagsToBuild.isEmpty()) {
     println "Building docker images: $tagsToBuild"
 }
 
-task clean(type: Delete) {
+task cleanupDocker(type: Delete) {
     group "build"
-    delete "${project.buildDir}"
-    dependsOn project(":app").tasks.findByName("clean")
+    delete "${project.buildDir}/.docker"
+    delete "${project.buildDir}/docker"
 }
 
 task copyApp(type: Copy) {
@@ -25,7 +33,7 @@ task copyApp(type: Copy) {
     from project(":app").buildDir
     include "*-runner"
     into dockerBuildDir
-    dependsOn project(":app").tasks.getByName("buildNative")
+    dependsOn project(":app").tasks.getByName("build")
 }
 
 task copyDockerSources(type: Copy) {
@@ -40,26 +48,31 @@ task buildAppImage(type: DockerBuildImage) {
     inputDir = dockerBuildDir
     tags.addAll(tagsToBuild)
 }
-
-task build {
-    group "build"
-    dependsOn buildAppImage
-}
+build.dependsOn buildAppImage
 
 task publish {
     group "publish"
-    dependsOn build
+    dependsOn build, test
 }
 
-if (!tagsToBuild.isEmpty()) {
+tagsToBuild.findAll { it != "itest" }.each { tag ->
     def taskName = { String str -> str.replaceAll("[/:]", "-") }
-    tagsToBuild.each { tag ->
-        publish.dependsOn task([type: DockerPushImage], "push_${taskName(tag)}", {
-            group "publish"
-            dependsOn buildAppImage
-            imageName = tag
-            registryCredentials.username = System.getenv("DOCKERHUB_USERNAME")
-            registryCredentials.password = System.getenv("DOCKERHUB_PASSWORD")
-        })
+    publish.dependsOn task([type: DockerPushImage], "push_${taskName(tag)}", {
+        group "publish"
+        dependsOn buildAppImage
+        imageName = tag
+        registryCredentials.username = System.getenv("DOCKERHUB_USERNAME")
+        registryCredentials.password = System.getenv("DOCKERHUB_PASSWORD")
+    })
+}
+
+if (!System.getProperty("itestDockerImage")) {
+    test {
+        systemProperty "psqlproxyImage", "dajudge/psqlproxy:itest"
+        dependsOn buildAppImage
+    }
+} else {
+    test {
+        systemProperty "psqlproxyImage", System.getProperty("itestDockerImage")
     }
 }

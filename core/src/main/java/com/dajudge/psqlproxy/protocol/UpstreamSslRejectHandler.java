@@ -44,7 +44,7 @@ public class UpstreamSslRejectHandler extends AbstractSingleChunkedMessageInboun
         final short major = payload.readShort();
         final short minor = payload.readShort();
         if (isSslRequest(major, minor)) {
-            LOG.info("Rejecting client's SSL request");
+            LOG.debug("Rejecting client's SSL request");
             final ByteBuf buffer = Unpooled.buffer(1);
             buffer.writeByte('N');
             ctx.writeAndFlush(buffer);

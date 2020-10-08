@@ -33,7 +33,9 @@ public class TypedFrameHandler extends AbstractChunkedMessageStreamInboundHandle
 
     @Override
     protected void onMessageComplete(final ChannelHandlerContext ctx, final TypedFrame message) {
-        LOG.info("Typed frame '{}': {} bytes", message.getType(), message.getChunks().get(1).readableBytes());
+        if(LOG.isTraceEnabled()) {
+            LOG.trace("Typed frame '{}': {} bytes", message.getType(), message.getChunks().get(1).readableBytes());
+        }
         frameProcessor = frameProcessor.process(ctx, message);
     }
 

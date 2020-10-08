@@ -34,25 +34,32 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
     private static final Logger LOG = LoggerFactory.getLogger(DownstreamSslActivationHandler.class);
     private final List<Object> messageBuffer = new ArrayList<>();
+    private final boolean requireSsl;
+
+    public DownstreamSslActivationHandler(final boolean requireSsl) {
+        this.requireSsl = requireSsl;
+    }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
         if (messageBuffer.isEmpty()) {
-            LOG.info("Requesting SSL communication with server");
+            LOG.trace("Requesting SSL communication with server");
             final ByteBuf buffer = Unpooled.buffer(8);
             buffer.writeInt(8);
             buffer.writeShort(1234);
             buffer.writeShort(5679);
             ctx.writeAndFlush(buffer, promise);
         }
-        LOG.info("Buffering message: {}", msg);
+        LOG.trace("Buffering message: {}", msg);
         messageBuffer.add(msg);
     }
 
@@ -60,22 +67,27 @@ public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         final ByteBuf buffer = (ByteBuf) msg;
         final char type = (char) buffer.readByte();
-        LOG.info("Received server response: {}", type);
+        LOG.trace("Received server response: {}", type);
         switch (type) {
             case 'E':
-                throw new RuntimeException("Server error");
+                throw new ProtocolErrorException("Server error");
             case 'N':
-                LOG.info("Server denied SSL");
-                ctx.pipeline().remove(this);
+                if (requireSsl) {
+                    LOG.warn("Server denied required SSL, terminating connection");
+                    ctx.close();
+                } else {
+                    LOG.debug("Server denied optional SSL, continuing in plaintext");
+                    ctx.pipeline().remove(this);
+                }
                 break;
             case 'S':
-                LOG.info("Server accepted SSL");
+                LOG.debug("Server accepted SSL");
                 ctx.pipeline().replace(this, "SSL", createSslHandler());
                 break;
             default:
                 throw new ProtocolErrorException("Unhandled server response type: " + type);
         }
-        LOG.info("Flushing message buffer");
+        LOG.trace("Flushing message buffer");
         messageBuffer.forEach(ctx::writeAndFlush);
     }
 
@@ -108,6 +120,13 @@ public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
         }
 
         public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            Stream.of(chain).forEach(it -> {
+                try {
+                    LOG.info("{}: {}", it.getSubjectDN().getName(), it.getSubjectAlternativeNames());
+                } catch (CertificateParsingException e) {
+                    e.printStackTrace();
+                }
+            });
         }
 
         public X509Certificate[] getAcceptedIssuers() {
