@@ -3,7 +3,7 @@ plugins {
 }
 
 ext {
-    proxyBaseVersion = "0.0.7"
+    proxyBaseVersion = "0.0.13"
     libProxyBase = "com.dajudge.proxybase:proxybase:$proxyBaseVersion"
 }
 
