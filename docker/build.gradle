@@ -55,7 +55,7 @@ task publish {
     dependsOn build, test
 }
 
-tagsToBuild.findAll { it != "itest" }.each { tag ->
+tagsToBuild.findAll { !it.endsWith(":itest") }.each { tag ->
     def taskName = { String str -> str.replaceAll("[/:]", "-") }
     publish.dependsOn task([type: DockerPushImage], "push_${taskName(tag)}", {
         group "publish"
