@@ -62,14 +62,15 @@ public class TestCertificateAuthority {
         Security.addProvider(new BouncyCastleProvider());
     }
 
-    public TestCertificateAuthority(final String issuerDn) {
+    public TestCertificateAuthority(final String issuerDn, final String trustStoreType) {
         this.issuerDn = issuerDn;
-        this.trustStore = createTrustStore(sign(issuerDn, issuerDn, keyPair.getPrivate(), keyPair.getPublic(), true));
+        final X509Certificate cert = sign(issuerDn, issuerDn, keyPair.getPrivate(), keyPair.getPublic(), true);
+        this.trustStore = createTrustStore(cert, trustStoreType);
     }
 
-    private static KeyStore createTrustStore(final X509Certificate cert) {
+    private static KeyStore createTrustStore(final X509Certificate cert, final String type) {
         try {
-            final KeyStore keystore = KeyStore.getInstance("jks");
+            final KeyStore keystore = KeyStore.getInstance(type);
             keystore.load(null, null);
             keystore.setCertificateEntry("ca", cert);
             return keystore;

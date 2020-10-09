@@ -36,7 +36,7 @@ public class PostgresProxy extends ProxyApplication {
                 config.getProxyEndpoint(),
                 config.getUsername(),
                 config.getPassword(),
-                config.isSslRequired()
+                config.getSslConfig()
         ));
     }
 
@@ -45,11 +45,11 @@ public class PostgresProxy extends ProxyApplication {
             final Endpoint proxyEndpoint,
             final String username,
             final String password,
-            final boolean requireSsl
+            final PostgresSslConfig sslConfig
     ) {
         final ProxyChannelInitializer initializer = (upstreamChannel, downstreamChannel) -> {
             configureUpstream(username, upstreamChannel, downstreamChannel);
-            configureDownstream(username, password, upstreamChannel, downstreamChannel, requireSsl);
+            configureDownstream(username, password, upstreamChannel, downstreamChannel, sslConfig);
         };
         return factory -> factory.createProxyChannel(
                 proxyEndpoint,
@@ -74,7 +74,7 @@ public class PostgresProxy extends ProxyApplication {
             final String password,
             final Channel upstreamChannel,
             final Channel downstreamChannel,
-            final boolean requireSsl
+            final PostgresSslConfig postgresSslConfig
     ) {
         final ContinueFrameProcessor finalProcessor = new ContinueFrameProcessor();
         final DownstreamStartupProcessor downstreamStartupProcessor = new DownstreamStartupProcessor(
@@ -84,7 +84,7 @@ public class PostgresProxy extends ProxyApplication {
         );
         downstreamChannel.pipeline().addLast(new TypedFrameHandler(downstreamStartupProcessor));
         downstreamChannel.pipeline().addLast(forwardTo("upstream", upstreamChannel));
-        downstreamChannel.pipeline().addFirst(new DownstreamSslActivationHandler(requireSsl));
+        downstreamChannel.pipeline().addFirst(new DownstreamSslActivationHandler(postgresSslConfig));
     }
 
     private static ChannelInboundHandlerAdapter forwardTo(final String direction, final Channel fwd) {

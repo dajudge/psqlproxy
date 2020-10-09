@@ -18,26 +18,27 @@
 package com.dajudge.psqlproxy;
 
 import com.dajudge.proxybase.config.Endpoint;
+import com.dajudge.psqlproxy.protocol.PostgresSslConfig;
 
 public class PostgresProxyConfig {
     private final Endpoint serverEndpoint;
     private final Endpoint proxyEndpoint;
     private final String username;
     private final String password;
-    private final boolean sslRequired;
+    private final PostgresSslConfig sslConfig;
 
     public PostgresProxyConfig(
             final Endpoint serverEndpoint,
             final Endpoint proxyEndpoint,
             final String username,
             final String password,
-            final boolean sslRequired
+            final PostgresSslConfig sslConfig
     ) {
         this.serverEndpoint = serverEndpoint;
         this.proxyEndpoint = proxyEndpoint;
         this.username = username;
         this.password = password;
-        this.sslRequired = sslRequired;
+        this.sslConfig = sslConfig;
     }
 
     public Endpoint getServerEndpoint() {
@@ -56,7 +57,7 @@ public class PostgresProxyConfig {
         return password;
     }
 
-    public boolean isSslRequired() {
-        return sslRequired;
+    public PostgresSslConfig getSslConfig() {
+        return sslConfig;
     }
 }

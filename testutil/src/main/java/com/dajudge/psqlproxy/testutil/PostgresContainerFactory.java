@@ -20,10 +20,14 @@ package com.dajudge.psqlproxy.testutil;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.Optional;
 
 import static java.lang.String.format;
@@ -37,26 +41,20 @@ public class PostgresContainerFactory {
     public static final String DB_DATABASE = "testdb";
     public static final String DB_USERNAME = "ir0nm4n";
     public static final String DB_PASSWORD = "p3pp3rp0tt5";
-    private static final TestCertificateAuthority CERTIFICATE_AUTHORITY = new TestCertificateAuthority("CN=test-ca");
-    private static final TestCertificateAuthority.ServerKeyPair SERVER_KEY_PAIR = CERTIFICATE_AUTHORITY
-            .newServerKeyPair("CN=localhost");
-    private static final Path TEMP_DIR = createTempDir();
-    private static final File SERVER_KEY = writeTempFile(
-            TEMP_DIR,
-            "server.key",
-            SERVER_KEY_PAIR.getPrivateKey()
-    );
-    private static final File SERVER_CERT = writeTempFile(
-            TEMP_DIR,
-            "server.crt",
-            SERVER_KEY_PAIR.getCertificate()
+    private static final TestCertificateAuthority CERTIFICATE_AUTHORITY = new TestCertificateAuthority(
+            "CN=test-ca",
+            "pkcs12"
     );
     private static final String SERVER_CERT_PATH = "/var/lib/postgresql/server.crt";
     private static final String SERVER_KEY_PATH = "/var/lib/postgresql/server.key";
     private static final String MOUNT_SERVER_CERT_PATH = "/tmp/server.crt";
     private static final String MOUNT_SERVER_KEY_PATH = "/tmp/server.key";
-    private static final File ENTRYPOINT_FILE = writeTempFile(
-            TEMP_DIR,
+
+    private final Path tempDir = createTempDir();
+    private final File serverKey;
+    private final File serverCert;
+    private final File entrypointFile = writeTempFile(
+            tempDir,
             "entrypoint.sh",
             entrypoint(
                     MOUNT_SERVER_KEY_PATH,
@@ -66,6 +64,13 @@ public class PostgresContainerFactory {
             ).getBytes(US_ASCII)
     );
     private static final String ENTRYPOINT_PATH = "/test-entrypoint.sh";
+
+    public PostgresContainerFactory(final String hostnameInCertificate) {
+        final TestCertificateAuthority.ServerKeyPair serverKeypair = CERTIFICATE_AUTHORITY
+                .newServerKeyPair("CN=" + hostnameInCertificate);
+        serverKey = writeTempFile(tempDir, "server.key", serverKeypair.getPrivateKey());
+        serverCert = writeTempFile(tempDir, "server.crt", serverKeypair.getCertificate());
+    }
 
     private static String entrypoint(
             final String mountedKeyFile,
@@ -87,11 +92,11 @@ public class PostgresContainerFactory {
         ));
     }
 
-    public static PostgreSQLContainer<?> createDatabaseContainer(final boolean sslEnabled) {
+    public PostgreSQLContainer<?> createDatabaseContainer(final boolean sslEnabled) {
         return createDatabaseContainer(sslEnabled, empty());
     }
 
-    public static PostgreSQLContainer<?> createDatabaseContainer(
+    public PostgreSQLContainer<?> createDatabaseContainer(
             final boolean sslEnabled,
             final Optional<Network> network
     ) {
@@ -103,9 +108,9 @@ public class PostgresContainerFactory {
         network.ifPresent(container::setNetwork);
 
         if (sslEnabled) {
-            container.withCopyFileToContainer(forHostPath(ENTRYPOINT_FILE.getAbsolutePath()), ENTRYPOINT_PATH)
-                    .withCopyFileToContainer(forHostPath(SERVER_CERT.getAbsolutePath()), MOUNT_SERVER_CERT_PATH)
-                    .withCopyFileToContainer(forHostPath(SERVER_KEY.getAbsolutePath()), MOUNT_SERVER_KEY_PATH)
+            container.withCopyFileToContainer(forHostPath(entrypointFile.getAbsolutePath()), ENTRYPOINT_PATH)
+                    .withCopyFileToContainer(forHostPath(serverCert.getAbsolutePath()), MOUNT_SERVER_CERT_PATH)
+                    .withCopyFileToContainer(forHostPath(serverKey.getAbsolutePath()), MOUNT_SERVER_KEY_PATH)
                     .withCreateContainerCmdModifier(cmd -> cmd
                             .withEntrypoint("sh", ENTRYPOINT_PATH)
                             .withCmd(
@@ -132,6 +137,16 @@ public class PostgresContainerFactory {
             return Files.createTempDirectory("psqlproxy-test-");
         } catch (final IOException e) {
             throw new RuntimeException("Failed to create temporary directory");
+        }
+    }
+
+    public byte[] getTrustStore(final String password) {
+        try {
+            final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            CERTIFICATE_AUTHORITY.getTrustStore().store(bos, password.toCharArray());
+            return bos.toByteArray();
+        } catch (final KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException e) {
+            throw new RuntimeException(e);
         }
     }
 }

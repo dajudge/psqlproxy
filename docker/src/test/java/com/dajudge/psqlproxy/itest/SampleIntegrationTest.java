@@ -18,34 +18,30 @@
 package com.dajudge.psqlproxy.itest;
 
 import com.dajudge.proxybase.config.Endpoint;
-import com.dajudge.psqlproxy.PostgresProxyConfig;
+import com.dajudge.psqlproxy.testutil.PostgresContainerFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.images.builder.Transferable;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Optional;
+import java.util.UUID;
 
 import static com.dajudge.psqlproxy.testutil.PostgresContainerFactory.*;
 import static java.lang.String.format;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.sql.DriverManager.getConnection;
-import static java.util.Optional.of;
 import static org.junit.Assert.assertEquals;
 import static org.testcontainers.containers.Network.newNetwork;
 
 public class SampleIntegrationTest {
-    private static final PostgresProxyConfig CONFIG = new PostgresProxyConfig(
-            new Endpoint("psql-server", 5432),
-            new Endpoint("0.0.0.0", 40000),
-            DB_USERNAME,
-            DB_PASSWORD,
-            true
-    );
-    private static final Logger LOG = LoggerFactory.getLogger(SampleIntegrationTest.class);
+    private static final String POSTGRES_SERVER_HOSTNAME = "psql-server";
+    private static final Endpoint PROXY_ENDPOINT = new Endpoint("0.0.0.0", 40000);
+    private static final Endpoint POSTGRES_ENDPOINT = new Endpoint(POSTGRES_SERVER_HOSTNAME, 5432);
     private static PostgreSQLContainer<?> postgres;
     private static ProxyContainer<?> proxy;
 
@@ -57,7 +53,7 @@ public class SampleIntegrationTest {
     }
 
     private Connection createProxiedConnection() throws SQLException {
-        return createConnection("localhost", proxy.getMappedPort(CONFIG.getProxyEndpoint().getPort()));
+        return createConnection("localhost", proxy.getMappedPort(PROXY_ENDPOINT.getPort()));
     }
 
     private Connection createConnection(final String host, final Integer port) throws SQLException {
@@ -67,10 +63,20 @@ public class SampleIntegrationTest {
     @BeforeClass
     public static void createTestbed() {
         final Network network = newNetwork();
-        postgres = createDatabaseContainer(true, of(network)).withNetworkAliases(CONFIG.getServerEndpoint().getHost());
+        final PostgresContainerFactory factory = new PostgresContainerFactory(POSTGRES_SERVER_HOSTNAME);
+        postgres = factory.createDatabaseContainer(true, Optional.of(network))
+                .withNetworkAliases(POSTGRES_SERVER_HOSTNAME);
         postgres.start();
-        proxy = new ProxyContainer<>(network, System.getProperty("psqlproxyImage"), CONFIG);
+        final String trustStorePassword = UUID.randomUUID().toString();
+        proxy = new ProxyContainer<>(network, System.getProperty("psqlproxyImage"))
+                .withPostgres(POSTGRES_ENDPOINT)
+                .withCredentials(DB_USERNAME, DB_PASSWORD)
+                .withBindAddress(PROXY_ENDPOINT)
+                .withSslRequired(true)
+                .withTrustStore("/truststore.p12", "/truststore.pwd");
         proxy.start();
+        proxy.copyFileToContainer(Transferable.of(factory.getTrustStore(trustStorePassword)), "/truststore.p12");
+        proxy.copyFileToContainer(Transferable.of(trustStorePassword.getBytes(UTF_8)), "/truststore.pwd");
     }
 
     @AfterClass

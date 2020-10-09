@@ -24,29 +24,21 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.ssl.SslHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateParsingException;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
+
+import static com.dajudge.proxybase.DownstreamSslHandlerFactory.createDownstreamSslHandler;
 
 public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
     private static final Logger LOG = LoggerFactory.getLogger(DownstreamSslActivationHandler.class);
     private final List<Object> messageBuffer = new ArrayList<>();
-    private final boolean requireSsl;
+    private final PostgresSslConfig sslConfig;
 
-    public DownstreamSslActivationHandler(final boolean requireSsl) {
-        this.requireSsl = requireSsl;
+    public DownstreamSslActivationHandler(final PostgresSslConfig sslConfig) {
+        this.sslConfig = sslConfig;
     }
 
     @Override
@@ -72,7 +64,7 @@ public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
             case 'E':
                 throw new ProtocolErrorException("Server error");
             case 'N':
-                if (requireSsl) {
+                if (sslConfig.isSslRequired()) {
                     LOG.warn("Server denied required SSL, terminating connection");
                     ctx.close();
                 } else {
@@ -82,7 +74,13 @@ public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
                 break;
             case 'S':
                 LOG.debug("Server accepted SSL");
-                ctx.pipeline().replace(this, "SSL", createSslHandler());
+                final ChannelHandler downstreamSslHandler = createDownstreamSslHandler(
+                        sslConfig.getConfig(),
+                        sslConfig.getDownstreamHostname(),
+                        sslConfig.getClock(),
+                        sslConfig.getFilesystem()
+                );
+                ctx.pipeline().replace(this, "SSL", downstreamSslHandler);
                 break;
             default:
                 throw new ProtocolErrorException("Unhandled server response type: " + type);
@@ -98,39 +96,5 @@ public class DownstreamSslActivationHandler extends ChannelDuplexHandler {
                 ((ByteBuf) m).release();
             }
         });
-    }
-
-    private ChannelHandler createSslHandler() {
-        try {
-            final SSLContext clientContext = SSLContext.getInstance("TLS");
-            clientContext.init(null, new TrustManager[]{TrustAllTrustManager.INSTANCE}, null);
-            final SSLEngine engine = clientContext.createSSLEngine();
-            engine.setUseClientMode(true);
-            return new SslHandler(engine);
-        } catch (final NoSuchAlgorithmException | KeyManagementException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private enum TrustAllTrustManager implements X509TrustManager {
-
-        INSTANCE;
-
-        public void checkClientTrusted(X509Certificate[] chain, String authType) {
-        }
-
-        public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            Stream.of(chain).forEach(it -> {
-                try {
-                    LOG.info("{}: {}", it.getSubjectDN().getName(), it.getSubjectAlternativeNames());
-                } catch (CertificateParsingException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-
-        public X509Certificate[] getAcceptedIssuers() {
-            return new X509Certificate[0];
-        }
     }
 }

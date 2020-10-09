@@ -17,7 +17,7 @@
 
 package com.dajudge.psqlproxy.itest;
 
-import com.dajudge.psqlproxy.PostgresProxyConfig;
+import com.dajudge.proxybase.config.Endpoint;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -26,19 +26,36 @@ import org.testcontainers.containers.output.Slf4jLogConsumer;
 import static java.lang.String.valueOf;
 
 public class ProxyContainer<T extends ProxyContainer<T>> extends GenericContainer<T> {
-    public ProxyContainer(final Network network, final String dockerImageName, final PostgresProxyConfig config) {
+    public ProxyContainer(final Network network, final String dockerImageName) {
         super(dockerImageName);
         this.withNetwork(network)
                 .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(ProxyContainer.class)))
-                .withExposedPorts(config.getProxyEndpoint().getPort(), 8080)
                 .withImagePullPolicy(imageName -> false)
-                .withEnv("PSQLPROXY_POSTGRES_HOSTNAME", config.getServerEndpoint().getHost())
-                .withEnv("PSQLPROXY_POSTGRES_PORT", valueOf(config.getServerEndpoint().getPort()))
-                .withEnv("PSQLPROXY_BIND_ADDRESS", config.getProxyEndpoint().getHost())
-                .withEnv("PSQLPROXY_BIND_PORT", valueOf(config.getProxyEndpoint().getPort()))
-                .withEnv("PSQLPROXY_USERNAME", config.getUsername())
-                .withEnv("PSQLPROXY_PASSWORD", config.getPassword())
-                .withEnv("PSQLPROXY_REQUIRE_SSL", String.valueOf(config.isSslRequired()))
                 .withEnv("PSQLPROXY_LOG_LEVEL", "DEBUG");
+    }
+
+    public ProxyContainer<T> withSslRequired(final boolean sslRequired) {
+        return this.withEnv("PSQLPROXY_REQUIRE_SSL", String.valueOf(sslRequired));
+    }
+
+    public ProxyContainer<T> withPostgres(final Endpoint endpoint) {
+        return this.withEnv("PSQLPROXY_POSTGRES_HOSTNAME", endpoint.getHost())
+                .withEnv("PSQLPROXY_POSTGRES_PORT", valueOf(endpoint.getPort()));
+    }
+
+    public ProxyContainer<T> withCredentials(final String username, final String password) {
+        return this.withEnv("PSQLPROXY_USERNAME", username)
+                .withEnv("PSQLPROXY_PASSWORD", password);
+    }
+
+    public ProxyContainer<T> withBindAddress(final Endpoint endpoint) {
+        return this.withEnv("PSQLPROXY_BIND_PORT", valueOf(endpoint.getPort()))
+                .withEnv("PSQLPROXY_BIND_ADDRESS", endpoint.getHost())
+                .withExposedPorts(endpoint.getPort(), 8080);
+    }
+
+    public T withTrustStore(final String trustStoreLocation, final String trustStorePasswordLocation) {
+        return this.withEnv("PSQLPROXY_TRUSTSTORE_LOCATION", trustStoreLocation)
+                .withEnv("PSQLPROXY_TRUSTSTORE_PASSWORD_LOCATION", trustStorePasswordLocation);
     }
 }
