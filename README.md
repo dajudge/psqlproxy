@@ -5,7 +5,7 @@
 psqlproxy
 -
 psqlproxy is a proxy server for PostgreSQL that enables you to delegate transport encryption and authentication
-out of your own code into an external runtime components. It's primary purpose is to run alongside your business
+out of your own code into an external runtime component. Its intended purpose is running alongside your business
 services in a Kubernetes deployment as a sidecar.
 
 It always requests SSL encrypted communication with the PostgreSQL server and can be configured to reject
@@ -36,7 +36,7 @@ psqlproxy is configured using the following environment variables.
 | Name                                     | Default   | Descrpition
 |------------------------------------------|:---------:|-----
 | `PSQLPROXY_POSTGRES_HOSTNAME`            |           | The hostname of the PostgreSQL server to connect to.
-| `PSQLPROXY_POSTGRES_PORT`                |           | The post of the PostgreSQL server to connect to.
+| `PSQLPROXY_POSTGRES_PORT`                |           | The port of the PostgreSQL server to connect to.
 | `PSQLPROXY_USERNAME`                     |           | The username to use for connecting to the PostgreSQL server.
 | `PSQLPROXY_PASSWORD`                     |           | The password to use for connecting to the PostgreSQL server.
 | `PSQLPROXY_BIND_PORT`                    |           | The port for the proxy to listen on.
