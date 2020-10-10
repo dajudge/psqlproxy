@@ -14,6 +14,22 @@ connections where the server denies SSL communication.
 Your application connects to psqlproxy instead of the PostgreSQL server itself and the username / password sent
 from the application will be replaced by psqlproxy with the configured credentials.  
 
+# Running psqlproxy
+psqlproxy is built and shipped as a docker container:
+```shell script
+$ docker run --rm -p 40000:40000 \
+  -e PSQLPROXY_POSTGRES_HOSTNAME=localhost \
+  -e PSQLPROXY_POSTGRES_PORT=5432 \
+  -e PSQLPROXY_BIND_ADDRESS=0.0.0.0 \
+  -e PSQLPROXY_BIND_PORT=40000 \
+  -e PSQLPROXY_USERNAME=postgres \
+  -e PSQLPROXY_PASSWORD=postgres \
+  -e PSQLPROXY_REQUIRE_SSL=true \
+  -e PSQLPROXY_TRUSTSTORE_LOCATION=/path/to/truststore.p12 \
+  -e PSQLPROXY_TRUSTSTORE_PASSWORD_LOCATION=/path/to/truststore.pwd \
+  -it dajudge/psqlproxy:0.0.2
+```
+
 # Configuration
 psqlproxy is configured using the following environment variables.
 
