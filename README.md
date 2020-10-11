@@ -4,18 +4,36 @@
 
 psqlproxy
 -
-psqlproxy is a proxy server for PostgreSQL that enables you to delegate transport encryption and authentication
+`psqlproxy` is a proxy server for PostgreSQL that enables you to delegate transport encryption and authentication
 out of your own code into an external runtime component. Its intended purpose is running alongside your business
 services in a Kubernetes deployment as a sidecar.
 
 It always requests SSL encrypted communication with the PostgreSQL server and can be configured to reject
 connections where the server denies SSL communication. 
 
-Your application connects to psqlproxy instead of the PostgreSQL server itself and the username / password sent
-from the application will be replaced by psqlproxy with the configured credentials.  
+Your application connects to `psqlproxy` instead of the PostgreSQL server itself and the username / password sent
+from the application will be replaced by `psqlproxy` with the configured credentials.  
 
-# Running psqlproxy
-psqlproxy is built and shipped as a docker container:
+# Example
+If you have `docker-compose` installed you can try out `psqlproxy` by using the demonstration setup provided in the
+`example` directory. So clone the [proxyproxy repo](https://github.com/dajudge/psqlproxy) and run the following commands:
+
+**Step 1:** Start a PostgreSQL server with `psqlproxy` on port 40000.
+```shell script
+$ docker-compose -f example/docker-compose.yaml up -d 
+```
+**Step 2:** Run a psql client against the proxy port (using bogus credentials) and verify that it works.
+```shell script
+$ docker run --rm --net host --entrypoint "" -e PGPASSWORD=wrongpass -it postgres:9.6.12 psql -h localhost -p 40000 -U wronguser -d postgres -c "SELECT version();"
+```
+**Step 3:** Cleanup.
+```shell script
+$ docker-compose -f example/docker-compose.yaml rm -sf
+```
+
+# Running `psqlproxy` in docker
+Even though `psqlproxy` is built for deployment in Kubernetes environments, as it's built and shipped as a
+docker container, you can of course simply run it using Docker:
 ```shell script
 $ docker run --rm -p 40000:40000 \
   -e PSQLPROXY_POSTGRES_HOSTNAME=localhost \
@@ -31,7 +49,7 @@ $ docker run --rm -p 40000:40000 \
 ```
 
 # Configuration
-psqlproxy is configured using the following environment variables.
+`psqlproxy` is configured using the following environment variables.
 
 | Name                                     | Default   | Descrpition
 |------------------------------------------|:---------:|-----

@@ -1,0 +1,33 @@
+version: '3'
+services:
+
+  psqlproxy:
+    image: "dajudge/psqlproxy:0.0.2"
+    restart: always
+    ports:
+      - "40000:40000"
+    volumes:
+      - ./tls:/tls
+    environment:
+      PSQLPROXY_POSTGRES_HOSTNAME: "postgres"
+      PSQLPROXY_POSTGRES_PORT: "5432"
+      PSQLPROXY_BIND_ADDRESS: "0.0.0.0"
+      PSQLPROXY_BIND_PORT: "40000"
+      PSQLPROXY_USERNAME: "postgres"
+      PSQLPROXY_PASSWORD: "postgres"
+      PSQLPROXY_REQUIRE_SSL: "true"
+      PSQLPROXY_TRUSTSTORE_LOCATION: "/tls/truststore.p12"
+      PSQLPROXY_TRUSTSTORE_PASSWORD_LOCATION: "/tls/truststore.pwd"
+
+  postgres:
+    image: "postgres:9.6.12"
+    restart: always
+    entrypoint: ["sh", "/postgres-entrypoint.sh"]
+    command: ["-l", "-c", "ssl_cert_file=/tmp/server-cert.pem", "-c", "ssl_key_file=/tmp/server-key.pem"]
+    volumes:
+      - ./tls:/tls
+      - ./postgres-entrypoint.sh:/postgres-entrypoint.sh
+    environment:
+      POSTGRES_DB: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
